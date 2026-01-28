@@ -1,6 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppRole } from '../types';
+import QRCode from 'qrcode.react';
 
 interface LobbyProps {
   onSelect: (role: AppRole, roomId: string) => void;
@@ -9,6 +10,15 @@ interface LobbyProps {
 
 const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
   const [id, setId] = useState(initialRoomId || '');
+  const [showQR, setShowQR] = useState(false);
+
+  useEffect(() => {
+    if (id.length === 4) {
+      setShowQR(true);
+    } else {
+      setShowQR(false);
+    }
+  }, [id]);
 
   const generateId = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -32,6 +42,8 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
     }
   };
 
+  const roomUrl = typeof window !== 'undefined' ? `${window.location.origin}?#${id}` : `http://localhost:3000?#${id}`;
+
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-8 max-w-md mx-auto">
       <div className="text-center">
@@ -44,8 +56,8 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
       <div className="w-full bg-slate-900/50 p-8 rounded-3xl border border-slate-800 shadow-2xl backdrop-blur-xl space-y-6">
         <div className="space-y-2">
           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Room Code</label>
-          <input 
-            type="text" 
+          <input
+            type="text"
             maxLength={4}
             placeholder="ABCD"
             value={id}
@@ -54,8 +66,29 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
           />
         </div>
 
+        {showQR && (
+          <div className="flex flex-col items-center space-y-4 p-4 bg-white rounded-xl">
+            <div className="text-sm font-bold text-slate-600 mb-2">
+              スマホでこの QR コードをスキャンしてください
+            </div>
+            <div className="bg-white p-2 rounded-lg">
+              <QRCode
+                value={roomUrl}
+                size={200}
+                level="M"
+                includeMargin={true}
+                fgColor="#000000"
+                bgColor="#ffffff"
+              />
+            </div>
+            <div className="text-xs text-slate-400 break-all">
+              {roomUrl}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-4">
-          <button 
+          <button
             onClick={handlePCSession}
             className="group relative bg-white text-slate-950 px-6 py-4 rounded-xl font-bold text-lg hover:scale-[1.02] active:scale-95 transition-all shadow-lg overflow-hidden"
           >
@@ -63,7 +96,7 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
             <i className="fa-solid fa-desktop mr-2"></i> PC MODE (Right Hand)
           </button>
 
-          <button 
+          <button
             onClick={handleMobileSession}
             className="bg-slate-800 border-2 border-slate-700 text-white px-6 py-4 rounded-xl font-bold text-lg hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-2"
           >
@@ -73,7 +106,8 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
       </div>
 
       <div className="text-slate-500 text-sm text-center px-4 leading-relaxed">
-        <p>Pro Tip: Open this app on your PC as <b>PC Mode</b> and on your phone as <b>Mobile Mode</b> using the same room code.</p>
+        <p>PC で <b>PC MODE</b>、スマホで <b>MOBILE MODE</b> を選択して同じルーム ID で接続</p>
+        <p className="mt-2">または、<b>QR コード</b>をスキャンして簡単に接続</p>
       </div>
     </div>
   );
