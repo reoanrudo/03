@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { AppRole } from '../types';
-import QRCode from 'qrcode.react';
+
+const QRCode = lazy(() => import('qrcode.react').then(m => ({ default: m.default })));
 
 interface LobbyProps {
   onSelect: (role: AppRole, roomId: string) => void;
@@ -71,16 +72,18 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
             <div className="text-sm font-bold text-slate-600 mb-2">
               スマホでこの QR コードをスキャンしてください
             </div>
-            <div className="bg-white p-2 rounded-lg">
-              <QRCode
-                value={roomUrl}
-                size={200}
-                level="M"
-                includeMargin={true}
-                fgColor="#000000"
-                bgColor="#ffffff"
-              />
-            </div>
+            <Suspense fallback={<div className="text-slate-500">QR コード生成中...</div>}>
+              <div className="bg-white p-2 rounded-lg">
+                <QRCode
+                  value={roomUrl}
+                  size={200}
+                  level="M"
+                  includeMargin={true}
+                  fgColor="#000000"
+                  bgColor="#ffffff"
+                />
+              </div>
+            </Suspense>
             <div className="text-xs text-slate-400 break-all">
               {roomUrl}
             </div>
