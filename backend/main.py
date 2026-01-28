@@ -1,10 +1,20 @@
 import json
+import os
 from typing import Dict
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
 app = FastAPI(title="Air Guitar Pro Signaling Server")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 rooms: Dict[str, Dict[str, WebSocket]] = {}
 connections: Dict[WebSocket, str] = {}
@@ -13,7 +23,12 @@ roles: Dict[WebSocket, str] = {}
 
 @app.get("/")
 async def get():
-    return {"message": "Air Guitar Pro Signaling Server"}
+    return {"message": "Air Guitar Pro Signaling Server", "status": "ok"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 @app.websocket("/ws")
@@ -131,4 +146,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8000"))
+    reload = os.getenv("ENVIRONMENT") != "production"
+    uvicorn.run("main:app", host=host, port=port, reload=reload)
