@@ -29,6 +29,30 @@ interface Particle {
   color: string;
 }
 
+interface ChordDefinition {
+  name: string;
+  frets: number[];
+}
+
+const CHORDS: ChordDefinition[] = [
+  { name: 'C', frets: [0, 1, 0, 2, 3, 0] },
+  { name: 'G', frets: [3, 0, 0, 0, 2, 3] },
+  { name: 'D', frets: [2, 3, 2, 0, 0, 0] },
+  { name: 'Am', frets: [0, 1, 2, 2, 0, 0] },
+  { name: 'E', frets: [0, 2, 2, 1, 0, 0] },
+  { name: 'A', frets: [0, 0, 2, 2, 2, 0] },
+  { name: 'Dm', frets: [2, 3, 2, 0, 1, 0] },
+  { name: 'Em', frets: [0, 2, 2, 0, 0, 0] },
+];
+
+const getCurrentChord = (frets: number[]): string | null => {
+  const normalizedFrets = [...frets].sort((a, b) => a - b);
+  return CHORDS.find(chord => {
+    const chordFrets = [...chord.frets].sort((a, b) => a - b);
+    return chordFrets.every((fret, i) => fret === normalizedFrets[i] || fret === 0);
+  })?.name || null;
+};
+
 const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -116,10 +140,19 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
     const spawnNote = () => {
       const now = Date.now();
       if (now - lastNoteSpawnTime.current > 1100) {
+        const currentChord = getCurrentChord(fretStatesRef.current);
+        let targetFrets: number[];
+
+        if (currentChord === 'C') {
+          targetFrets = [0, 1, 0, 2, 3, 0];
+        } else {
+          targetFrets = [0, 3, 5, 7, 10, 12];
+        }
+
         notesRef.current.push({
           id: nextNoteId.current++,
           x: -100,
-          fret: [0, 3, 5, 7, 10, 12][Math.floor(Math.random() * 6)],
+          fret: targetFrets[Math.floor(Math.random() * targetFrets.length)],
           hit: false,
           missed: false
         });
@@ -298,12 +331,17 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
         }
         
         if (!note.hit) {
+          const currentChord = getCurrentChord(fretStatesRef.current);
           ctx.save();
           ctx.globalAlpha = note.missed ? 0.2 : 1.0;
           ctx.fillStyle = note.missed ? '#450a0a' : '#f97316';
           ctx.beginPath(); ctx.roundRect(note.x - 55, centerY - 45, 110, 90, 20); ctx.fill();
           ctx.fillStyle = '#fff'; ctx.font = '900 44px sans-serif'; ctx.textAlign = 'center';
-          ctx.fillText(`F${note.fret}`, note.x, centerY + 18);
+          if (currentChord) {
+            ctx.fillText(currentChord, note.x, centerY + 18);
+          } else {
+            ctx.fillText(`F${note.fret}`, note.x, centerY + 18);
+          }
           ctx.restore();
         }
       }
