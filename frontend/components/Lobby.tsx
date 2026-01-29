@@ -46,13 +46,6 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-8 max-w-md mx-auto overflow-y-auto">
-        {/* QRコードエリアのz-indexを高めてモバイルボタンが押せるようにする */}
-        {showQR && (
-          <style>{`
-            .lobby-container { position: relative; }
-            .mobile-button { position: relative; z-index: 10; }
-          `}</style>
-        )}
       <div className="text-center">
         <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-yellow-400 mb-2 italic">
           AIR GUITAR PRO
@@ -85,19 +78,40 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
             <div className="text-sm font-bold text-slate-600 mb-2">
               スマホでこの QR コードをスキャンしてください
             </div>
-            <div className="bg-white p-2 rounded-lg">
-              <QRCode
-                value={roomUrl}
-                size={200}
-                level="M"
-                includeMargin={true}
-                fgColor="#000000"
-                bgColor="#ffffff"
-              />
+            <a
+              href={`/#${id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block"
+            >
+              <div className="bg-white p-2 rounded-lg hover:bg-slate-50 transition-colors">
+                <QRCode
+                  value={roomUrl}
+                  size={200}
+                  level="M"
+                  includeMargin={true}
+                  fgColor="#000000"
+                  bgColor="#ffffff"
+                />
+              </div>
+            </a>
+            <div className="mt-3 p-3 bg-slate-800/50 rounded-lg text-left">
+              <p className="text-sm font-bold text-slate-300 mb-2">📱 スマホでの操作：</p>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-slate-400">
+                <li>このQRコードをタップ</li>
+                <li>自動的に新しいタブで接続画面が開きます</li>
+                <li>ルームIDが入力されます</li>
+              </ol>
             </div>
-            <div className="text-xs text-slate-400 break-all">
-              {roomUrl}
-            </div>
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-slate-500 hover:text-slate-400 underline block mt-3"
+            >
+              新しいルームを作成する
+            </a>
+          </div>
           </div>
         )}
 
@@ -137,7 +151,7 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
 
       <div className="text-slate-500 text-sm text-center px-4 leading-relaxed">
         <p>PC で <b>PC MODE</b>、スマホで <b>MOBILE MODE</b> を選択して同じルーム ID で接続</p>
-        <p className="mt-2">または、<b>QR コード</b>をスキャンして簡単に接続</p>
+        <p className="mt-2">または、<b>QR コード</b>をタップして新しいタブで開いてください</p>
       </div>
     </div>
   );
