@@ -39,7 +39,7 @@ const App: React.FC = () => {
           setWebrtc(service);
           
           service.onConnected(() => setConnected(true));
-          await service.initialize(false);
+          service.initialize(false);
         }
       }
     };
