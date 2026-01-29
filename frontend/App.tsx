@@ -45,12 +45,11 @@ const App: React.FC = () => {
     };
 
     window.addEventListener('hashchange', handleHashChange);
-    handleHashChange();
-
+    
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
-  }, []);
+  }, [role]);
 
   const handleRoleSelect = useCallback(async (selectedRole: AppRole, id: string) => {
     if (selectedRole === AppRole.PC_PLAYER) {

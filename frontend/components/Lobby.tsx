@@ -42,7 +42,9 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
     }
   };
 
-  const roomUrl = `/#${id}`;
+  const roomUrl = typeof window !== 'undefined' && window.location.hostname.includes('render.com')
+    ? `https://air-guitar-pro-frontend.onrender.com/#${id}`
+    : `/#${id}`;
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-8 max-w-md mx-auto overflow-y-auto">
