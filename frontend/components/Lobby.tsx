@@ -67,7 +67,14 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
         </div>
 
         {showQR && (
-          <div className="flex flex-col items-center space-y-4 p-4 bg-white rounded-xl">
+          <div className="flex flex-col items-center space-y-4 p-4 bg-white rounded-xl relative">
+            <button
+              onClick={() => setShowQR(false)}
+              className="absolute top-2 right-2 w-8 h-8 bg-slate-200 hover:bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold transition-all"
+              aria-label="QRコードを閉じる"
+            >
+              ×
+            </button>
             <div className="text-sm font-bold text-slate-600 mb-2">
               スマホでこの QR コードをスキャンしてください
             </div>
@@ -85,6 +92,15 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
               {roomUrl}
             </div>
           </div>
+        )}
+
+        {!showQR && id.length === 4 && (
+          <button
+            onClick={() => setShowQR(true)}
+            className="text-xs font-bold text-orange-500 hover:text-orange-400 underline transition-all"
+          >
+            QR コードを再表示
+          </button>
         )}
 
         <div className="grid grid-cols-1 gap-4">

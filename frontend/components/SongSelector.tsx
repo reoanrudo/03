@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { Song, Difficulty, SONGS, DIFFICULTY } from '../services/songData';
+import { Song, Difficulty, SONGS, DIFFICULTY } from '../services/SongData';
 import { progressService } from '../services/ProgressService';
 
 interface SongSelectorProps {
