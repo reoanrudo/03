@@ -42,7 +42,8 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
     }
   };
 
-  const roomUrl = typeof window !== 'undefined' && window.location.hostname.includes('render.com')
+  const isRender = typeof window !== 'undefined' && window.location.hostname.includes('render.com');
+  const roomUrl = isRender
     ? `https://air-guitar-pro-frontend.onrender.com/#${id}`
     : `/#${id}`;
 
@@ -80,40 +81,16 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
             <div className="text-sm font-bold text-slate-600 mb-2">
               スマホでこの QR コードをスキャンしてください
             </div>
-            <a
-              href={`/#${id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block"
-            >
-              <div className="bg-white p-2 rounded-lg hover:bg-slate-50 transition-colors">
-                <QRCode
-                  value={roomUrl}
-                  size={200}
-                  level="M"
-                  includeMargin={true}
-                  fgColor="#000000"
-                  bgColor="#ffffff"
-                />
-              </div>
-            </a>
-            <div className="mt-3 p-3 bg-slate-800/50 rounded-lg text-left">
-              <p className="text-sm font-bold text-slate-300 mb-2">📱 スマホでの操作：</p>
-              <ol className="list-decimal list-inside space-y-2 text-sm text-slate-400">
-                <li>このQRコードをタップ</li>
-                <li>自動的に新しいタブで接続画面が開きます</li>
-                <li>ルームIDが入力されます</li>
-              </ol>
+            <div className="bg-white p-2 rounded-lg">
+              <QRCode
+                value={roomUrl}
+                size={200}
+                level="M"
+                includeMargin={true}
+                fgColor="#000000"
+                bgColor="#ffffff"
+              />
             </div>
-            <a
-              href="/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-slate-500 hover:text-slate-400 underline block mt-3"
-            >
-              新しいルームを作成する
-            </a>
-          </div>
           </div>
         )}
 
