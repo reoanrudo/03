@@ -39,6 +39,24 @@ const MobileController: React.FC<MobileControllerProps> = ({ webrtc, roomId, con
       .map(([fret]) => parseInt(fret));
   };
 
+  const getChordName = (): string => {
+    const nonEmptyFrets = fretStates.filter(f => f > 0);
+    if (nonEmptyFrets.length === 0) return '';
+    
+    const chordMap: Record<string, string> = {
+      [0, 1, 0, 2, 3, 0]: 'C',
+      [3, 0, 0, 0, 2, 3]: 'G',
+      [0, 1, 2, 2, 0, 0]: 'D',
+      [0, 0, 1, 2, 2, 0]: 'Am',
+      [3, 2, 0, 0, 0, 3]: 'Em',
+      [1, 0, 0, 0, 2, 3]: 'F',
+      [0, 0, 2, 2, 2, 0]: 'A',
+    };
+    
+    const key = fretStates.join('-');
+    return chordMap[key] || '';
+  };
+
   const handleTouch = useCallback((stringIdx: number, fret: number) => {
     // 振動フィードバック (対応ブラウザのみ)
     if (window.navigator.vibrate) {
@@ -70,11 +88,26 @@ const MobileController: React.FC<MobileControllerProps> = ({ webrtc, roomId, con
         <div className="text-right">
            <div className="text-[8px] font-bold text-slate-500 uppercase">Room Code</div>
            <div className="font-mono text-sm font-black text-orange-500 leading-none">{roomId}</div>
-        </div>
-        <button onClick={onExit} className="ml-4 p-2 px-4 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-bold border border-white/5">EXIT</button>
-      </div>
+         </div>
+         <button onClick={onExit} className="ml-4 p-2 px-4 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-bold border border-white/5">EXIT</button>
+       </div>
 
-      {/* Fretboard Area - 横持ち用（90度回転） */}
+       {/* コード名表示エリア - 初心者向け */}
+       {(() => {
+         const chordName = getChordName();
+         return chordName ? (
+           <div className="fixed top-20 left-1/2 right-1/2 z-50 pointer-events-none">
+             <div className="bg-slate-900/90 backdrop-blur-xl border border-white/20 rounded-2xl px-6 py-3 shadow-2xl">
+               <div className="text-center">
+                 <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Current Chord</div>
+                 <div className="text-5xl font-black text-orange-400 tracking-tight">{chordName}</div>
+               </div>
+             </div>
+           </div>
+         ) : null;
+       })()}
+
+       {/* Fretboard Area - 横持ち用（90度回転） */}
       <div className="flex-1 flex-col relative bg-[#0f172a]">
         {/* String Names Rail - 左部 */}
         <div className="h-12 flex items-center justify-center bg-black/40 border-b border-white/10">
@@ -135,8 +168,8 @@ const MobileController: React.FC<MobileControllerProps> = ({ webrtc, roomId, con
                           className={`flex-1 flex items-center justify-center transition-all active:bg-white/5`}
                           onTouchStart={() => handleTouch(sIdx, fretIdx + 1)}
                         >
-                          <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center text-[14px] font-black transition-all ${
-                            fretStates[sIdx] === fretIdx + 1
+                          <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center text-[14px] font-black transition-all active:bg-white/5 ${
+                            fretStates[sIdx] === fIdx + 1
                               ? 'bg-orange-500 border-orange-300 text-white scale-125 shadow-[0_20px_0_rgba(249,115,22,0.5)] z-30'
                               : 'border-slate-800/50 bg-slate-900/30 text-slate-700'
                           }`}>
