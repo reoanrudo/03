@@ -59,7 +59,7 @@ const MobileController: React.FC<MobileControllerProps> = ({ webrtc, roomId, con
   }, [fretStates, webrtc]);
 
   return (
-    <div className="flex-1 flex flex-col h-screen w-full bg-slate-950 overflow-hidden select-none touch-none font-sans">
+    <div className="flex-1 flex flex-col min-h-screen w-full bg-slate-950 select-none touch-none font-sans">
       {/* Status Bar */}
       <div className="flex items-center justify-between px-6 py-4 bg-slate-900 border-b border-white/5">
         <div className="flex items-center gap-3">
@@ -95,8 +95,8 @@ const MobileController: React.FC<MobileControllerProps> = ({ webrtc, roomId, con
             />
           ))}
 
-          {/* バレーコード表示（複数弦が同じフレットを押している） */}
-          <div className="absolute inset-0 pointer-events-none z-15">
+           {/* バレーコード表示（複数弦が同じフレットを押している） */}
+          <div className="absolute inset-0 pointer-events-none z-10">
             {getBarreFrets().map(fret => (
               <div
                 key={fret}
