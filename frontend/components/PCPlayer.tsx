@@ -2,6 +2,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { WebRTCService } from '../services/WebRTCService';
 import { AudioEngine } from '../services/AudioEngine';
+import { Song, CHORDS, getCurrentChord } from '../services/SongData';
 import * as tf from '@tensorflow/tfjs';
 import * as handpose from '@tensorflow-models/handpose';
 
@@ -10,12 +11,14 @@ interface PCPlayerProps {
   roomId: string;
   connected: boolean;
   onExit: () => void;
+  currentSong?: Song | null;
 }
 
 interface Note {
   id: number;
   x: number;
   fret: number;
+  chord?: string;
   hit: boolean;
   missed: boolean;
 }
@@ -29,31 +32,7 @@ interface Particle {
   color: string;
 }
 
-interface ChordDefinition {
-  name: string;
-  frets: number[];
-}
-
-const CHORDS: ChordDefinition[] = [
-  { name: 'C', frets: [0, 1, 0, 2, 3, 0] },
-  { name: 'G', frets: [3, 0, 0, 0, 2, 3] },
-  { name: 'D', frets: [2, 3, 2, 0, 0, 0] },
-  { name: 'Am', frets: [0, 1, 2, 2, 0, 0] },
-  { name: 'E', frets: [0, 2, 2, 1, 0, 0] },
-  { name: 'A', frets: [0, 0, 2, 2, 2, 0] },
-  { name: 'Dm', frets: [2, 3, 2, 0, 1, 0] },
-  { name: 'Em', frets: [0, 2, 2, 0, 0, 0] },
-];
-
-const getCurrentChord = (frets: number[]): string | null => {
-  const normalizedFrets = [...frets].sort((a, b) => a - b);
-  return CHORDS.find(chord => {
-    const chordFrets = [...chord.frets].sort((a, b) => a - b);
-    return chordFrets.every((fret, i) => fret === normalizedFrets[i] || fret === 0);
-  })?.name || null;
-};
-
-const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }) => {
+const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit, currentSong }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<AudioEngine | null>(null);
@@ -79,6 +58,12 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
   const particlesRef = useRef<Particle[]>([]);
   const frameIdRef = useRef<number | null>(null);
 
+  const noteIndexRef = useRef(0);
+  const songStartTimeRef = useRef<number>(0);
+  const isPlayingRef = useRef(false);
+
+  const [isPlaying, setIsPlaying] = useState(false);
+
   const [dims, setDims] = useState({ w: window.innerWidth, h: window.innerHeight });
 
   useEffect(() => {
@@ -86,6 +71,13 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (currentSong) {
+      noteIndexRef.current = 0;
+      songStartTimeRef.current = Date.now();
+    }
+  }, [currentSong]);
 
   const CANVAS_W = dims.w;
   const CANVAS_H = dims.h;
@@ -108,8 +100,9 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
   useEffect(() => {
     if (!audioRef.current) {
       audioRef.current = new AudioEngine();
+      console.log('🎸 Audio Engine initialized');
     }
-    
+
     webrtc.onMessage((data) => {
       if (data.type === 'FRET_UPDATE') {
         fretStatesRef.current = data.payload;
@@ -117,14 +110,20 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
     });
 
     const init = async () => {
+      noteIndexRef.current = 0;
+      scoreRef.current = 0;
+      comboRef.current = 0;
+      notesRef.current = [];
+      isPlayingRef.current = false; // 初期化
+
       await tf.setBackend('webgl');
       await tf.ready();
       const model = await handpose.load();
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 1280, height: 720, frameRate: { ideal: 60 } }, 
-        audio: false 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 1280, height: 720, frameRate: { ideal: 60 } },
+        audio: false
       });
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = async () => {
@@ -134,18 +133,63 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
           }
         };
       }
+
+      if (currentSong?.bgmUrl && audioRef.current) {
+        try {
+          console.log('🎵 Loading BGM:', currentSong.bgmUrl);
+          await audioRef.current.loadBGM(currentSong.bgmUrl);
+          console.log('🎵 BGM loaded successfully');
+        } catch (e) {
+          console.warn('BGM load failed in init:', e);
+        }
+      }
+
       setIsReady(true);
+      console.log('✅ PCPlayer ready');
     };
 
     const spawnNote = () => {
       const now = Date.now();
       if (now - lastNoteSpawnTime.current > 1100) {
-        const currentChord = getCurrentChord(fretStatesRef.current);
-        let targetFrets: number[];
+        let chord: string | null = null;
+        let targetFrets: number[] = [];
 
-        if (currentChord === 'C') {
-          targetFrets = [0, 1, 0, 2, 3, 0];
-        } else {
+        if (currentSong) {
+          const chordData = currentSong.chordChart[noteIndexRef.current];
+          if (chordData) {
+            chord = chordData.chord;
+            const currentChordDef = CHORDS.find(c => c.name === chord);
+            if (currentChordDef) {
+              targetFrets = currentChordDef.frets;
+            }
+          }
+          const timeSinceStart = now - songStartTimeRef.current;
+          const expectedTime = chordData.timestamp;
+
+          if (timeSinceStart >= expectedTime) {
+            const prevChord = currentSong.chordChart[noteIndexRef.current].chord;
+            noteIndexRef.current++;
+
+            // 練習曲用BGMの更新
+            if (!currentSong.bgmUrl && audioRef.current) {
+              const nextChordData = currentSong.chordChart[noteIndexRef.current];
+              if (nextChordData) {
+                audioRef.current.playPracticeBGM(nextChordData.chord, currentSong.bpm);
+              }
+            }
+
+            if (noteIndexRef.current >= currentSong.chordChart.length) {
+              setIsPlaying(false);
+              isPlayingRef.current = false;
+              audioRef.current?.stopPracticeBGM();
+              return;
+            }
+          } else {
+            return;
+          }
+        }
+
+        if (targetFrets.length === 0) {
           targetFrets = [0, 3, 5, 7, 10, 12];
         }
 
@@ -153,6 +197,7 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
           id: nextNoteId.current++,
           x: -100,
           fret: targetFrets[Math.floor(Math.random() * targetFrets.length)],
+          chord: chord,
           hit: false,
           missed: false
         });
@@ -160,14 +205,14 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
       }
     };
 
-    const drawHandMesh = (ctx: CanvasRenderingContext2D, landmarks: number[][], vScale: number, hScale: number, isStrum: boolean) => {
+    const drawHandMesh = (ctx: CanvasRenderingContext2D, landmarks: number[][], vScale: number, hScale: number, inZone: boolean) => {
       ctx.save();
       ctx.scale(-1, 1);
       ctx.translate(-CANVAS_W, 0);
 
-      ctx.strokeStyle = isStrum ? '#fb923c' : '#0ea5e9';
-      ctx.lineWidth = 3;
-      ctx.shadowBlur = isStrum ? 30 : 5;
+      ctx.strokeStyle = inZone ? '#fb923c' : '#0ea5e9';
+      ctx.lineWidth = inZone ? 5 : 3;
+      ctx.shadowBlur = inZone ? 30 : 10;
       ctx.shadowColor = ctx.strokeStyle;
 
       const fingers = [
@@ -204,7 +249,7 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
       ctx.drawImage(videoRef.current, -CANVAS_W, 0, CANVAS_W, CANVAS_H);
       ctx.restore();
 
-      if (isAudioStartedRef.current) spawnNote();
+      if (isPlayingRef.current && isAudioStartedRef.current) spawnNote();
 
       // --- 1. リズム・トラック ---
       const trackH = 140;
@@ -216,7 +261,27 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
       ctx.lineWidth = 14;
       ctx.beginPath(); ctx.moveTo(HIT_ZONE_X, trackY + 15); ctx.lineTo(HIT_ZONE_X, trackY + trackH - 15); ctx.stroke();
 
-      // --- 2. 弦 (左が高く、右が低い。角度反転) ---
+      // --- 2. ストラムゾーンの可視化 ---
+      ctx.save();
+      ctx.strokeStyle = 'rgba(14, 165, 233, 0.5)';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([15, 10]);
+      ctx.strokeRect(STRUM_ZONE.x, STRUM_ZONE.y, STRUM_ZONE.w, STRUM_ZONE.h);
+      ctx.setLineDash([]);
+
+      // 判定ラインを表示
+      ctx.strokeStyle = 'rgba(251, 146, 60, 0.4)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(STRUM_ZONE.x, STRUM_MID_Y);
+      ctx.lineTo(STRUM_ZONE.x + STRUM_ZONE.w, STRUM_MID_Y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.restore();
+
+      // --- 3. 弦 (左が高く、右が低い。角度反転) ---
       ctx.save();
       const frets = fretStatesRef.current;
       for (let i = 0; i < 6; i++) {
@@ -232,7 +297,10 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
       }
       ctx.restore();
 
-      // --- 3. ハンドトラッキング & ストローク判定 ---
+      // --- 4. ハンドトラッキング & ストローク判定 ---
+      let handInZone = false;
+      let displayHandX = 0;
+      let avgTipY = 0;
       const predictions = await model.estimateHands(videoRef.current);
       let didStrum = false;
       let strumDir: 'up' | 'down' = 'down';
@@ -242,10 +310,10 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
         const hScale = CANVAS_W / videoRef.current.videoWidth;
         const vScale = CANVAS_H / videoRef.current.videoHeight;
 
-        // 顔の誤検知防止フィルタ: 画面下部50%付近のみを有効とする
+        // 顔の誤検知防止フィルタ: 画面下部のみを有効とする（厳しめに設定）
         const validHands = predictions.filter(p => {
           const wristY = p.landmarks[0][1] * vScale;
-          return wristY > CANVAS_H * 0.45; // 画面中央より上は顔とみなす
+          return wristY > CANVAS_H * 0.55; // 画面の上55%は除外（顔検知を完全に防ぐ）
         });
 
         if (validHands.length > 0) {
@@ -256,11 +324,15 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
           const avgTipY = (hand.landmarks[8][1] + hand.landmarks[12][1] + hand.landmarks[16][1]) / 3 * vScale;
           const displayHandX = CANVAS_W - (hand.landmarks[0][0] * hScale);
 
-          drawHandMesh(ctx, hand.landmarks, vScale, hScale, isStrummingRef.current);
+          // ゾーン内チェック（手が検出される前に判定）
+          const inZone = displayHandX > STRUM_ZONE.x && displayHandX < STRUM_ZONE.x + STRUM_ZONE.w &&
+                          avgTipY > STRUM_ZONE.y && avgTipY < STRUM_ZONE.y + STRUM_ZONE.h;
+          handInZone = inZone;
 
-          // ゾーン内チェック
-          if (displayHandX > STRUM_ZONE.x && displayHandX < STRUM_ZONE.x + STRUM_ZONE.w &&
-              avgTipY > STRUM_ZONE.y && avgTipY < STRUM_ZONE.y + STRUM_ZONE.h) {
+          // 手のメッシュを描画（ゾーン内では強調表示）
+          drawHandMesh(ctx, hand.landmarks, vScale, hScale, inZone);
+
+          if (inZone) {
             
             if (lastYRef.current !== null) {
               const vel = avgTipY - lastYRef.current;
@@ -291,7 +363,30 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
         }
       }
 
-      // --- 4. ノーツ処理 ---
+      // --- ストラムゾーンの視覚的フィードバック ---
+      if (handInZone) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(251, 146, 60, 0.15)';
+        ctx.fillRect(STRUM_ZONE.x, STRUM_ZONE.y, STRUM_ZONE.w, STRUM_ZONE.h);
+
+        ctx.fillStyle = '#fb923c';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#fb923c';
+        ctx.shadowBlur = 10;
+        ctx.fillText('🎸 STRUM ZONE ACTIVE', STRUM_ZONE.x + STRUM_ZONE.w / 2, STRUM_ZONE.y - 15);
+        ctx.restore();
+      } else {
+        // 手が検出されていない時の表示
+        ctx.save();
+        ctx.fillStyle = 'rgba(14, 165, 233, 0.3)';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('👋 手を腰の高さで振ってください', STRUM_ZONE.x + STRUM_ZONE.w / 2, STRUM_ZONE.y + STRUM_ZONE.h / 2);
+        ctx.restore();
+      }
+
+      // --- 5. ノーツ処理 ---
       const notes = notesRef.current;
       const centerY = trackY + (trackH / 2);
       for (let i = notes.length - 1; i >= 0; i--) {
@@ -326,20 +421,19 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
             setComboDisplay(0);
             setLastRating({ text: 'MISS', color: 'text-red-500 font-black' });
             setTimeout(() => setLastRating(null), 500);
-            if (audioRef.current) audioRef.current.playMuted();
+            // MISS時は音を鳴らさない（視覚的フィードバックのみ）
           }
         }
         
         if (!note.hit) {
-          const currentChord = getCurrentChord(fretStatesRef.current);
           ctx.save();
           ctx.globalAlpha = note.missed ? 0.2 : 1.0;
           ctx.fillStyle = note.missed ? '#450a0a' : '#f97316';
           ctx.beginPath(); ctx.roundRect(note.x - 55, centerY - 45, 110, 90, 20); ctx.fill();
           ctx.fillStyle = '#fff'; ctx.font = '900 44px sans-serif'; ctx.textAlign = 'center';
-          if (currentChord) {
-            ctx.fillText(currentChord, note.x, centerY + 18);
-          } else {
+          if (note.chord) {
+            ctx.fillText(note.chord, note.x, centerY + 18);
+          } else if (note.fret !== undefined) {
             ctx.fillText(`F${note.fret}`, note.x, centerY + 18);
           }
           ctx.restore();
@@ -369,12 +463,37 @@ const PCPlayer: React.FC<PCPlayerProps> = ({ webrtc, roomId, connected, onExit }
       if (frameIdRef.current) cancelAnimationFrame(frameIdRef.current);
       const stream = videoRef.current?.srcObject as MediaStream;
       stream?.getTracks().forEach(t => t.stop());
+      if (audioRef.current) {
+        audioRef.current.stopBGM();
+        audioRef.current.stopPracticeBGM();
+      }
     };
   }, [dims]);
 
   const handleStart = async () => {
+    notesRef.current = [];
+    scoreRef.current = 0;
+    comboRef.current = 0;
+    setScoreDisplay(0);
+    setComboDisplay(0);
+    setLastRating(null);
+    isPlayingRef.current = true; // Refを更新
+    setIsPlaying(true); // Stateも更新（UI用）
+    noteIndexRef.current = 0;
+    songStartTimeRef.current = Date.now();
+
     if (audioRef.current) {
       await audioRef.current.start();
+
+      // 練習曲（BGMなし）の場合は練習曲用BGMを再生
+      if (currentSong && !currentSong.bgmUrl) {
+        const firstChord = currentSong.chordChart[0]?.chord;
+        if (firstChord) {
+          audioRef.current.playPracticeBGM(firstChord, currentSong.bpm);
+        }
+      } else {
+        audioRef.current.playBGM();
+      }
     }
     setIsAudioStarted(true);
     isAudioStartedRef.current = true;
