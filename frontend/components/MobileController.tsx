@@ -14,6 +14,32 @@ const MobileController: React.FC<MobileControllerProps> = ({ webrtc, roomId, con
   const stringNames = ['E', 'A', 'D', 'G', 'B', 'E'];
   const totalFrets = 4;
 
+  // 弦の太さグラデーション（6弦から1弦まで）
+  const stringThickness = ['h-[3.5px]', 'h-[3px]', 'h-[2.5px]', 'h-[2px]', 'h-[1.5px]', 'h-[1px]'];
+  
+  // 弦の色グラデーション（低音は濃い、高音は薄い）
+  const stringColors = [
+    'bg-slate-700',  // 6弦（低音）
+    'bg-slate-600',  // 5弦
+    'bg-slate-500',  // 4弦
+    'bg-slate-400',  // 3弦
+    'bg-slate-300',  // 2弦
+    'bg-slate-200',  // 1弦（高音）
+  ];
+
+  // バレーコード検出（複数弦が同じフレットを押している）
+  const getBarreFrets = (): number[] => {
+    const fretCounts: Record<number, number> = {};
+    fretStates.forEach(f => {
+      if (f > 0) {
+        fretCounts[f] = (fretCounts[f] || 0) + 1;
+      }
+    });
+    return Object.entries(fretCounts)
+      .filter(([_, count]) => count >= 2)
+      .map(([fret]) => parseInt(fret));
+  };
+
   const handleTouch = useCallback((stringIdx: number, fret: number) => {
     // 振動フィードバック (対応ブラウザのみ)
     if (window.navigator.vibrate) {
@@ -64,23 +90,36 @@ const MobileController: React.FC<MobileControllerProps> = ({ webrtc, roomId, con
           {Array.from({ length: totalFrets }).map((_, i) => (
             <div
               key={i}
-              className="absolute w-full h-[2px] bg-gradient-to-r from-slate-700 via-slate-500 to-slate-700 shadow-[0_2px_5px_rgba(0,0,0,0.5)] z-10"
+              className="absolute w-full h-[3px] bg-gradient-to-r from-slate-600 via-slate-500 to-slate-600 shadow-[0_2px_8px_rgba(0,0,0,0.3)] z-10"
               style={{ top: `${(i + 1) * (100 / totalFrets)}%` }}
             />
           ))}
+
+          {/* バレーコード表示（複数弦が同じフレットを押している） */}
+          <div className="absolute inset-0 pointer-events-none z-15">
+            {getBarreFrets().map(fret => (
+              <div
+                key={fret}
+                className="absolute w-full h-2 bg-orange-400/30"
+                style={{ top: `${(fret - 1) * (100 / totalFrets)}%` }}
+              >
+                <div className="absolute inset-0 h-1 bg-orange-400 rounded-full" />
+              </div>
+            ))}
+          </div>
 
           {/* Strings and Interaction Layers - 縦方向 */}
           <div className="flex-1 flex py-4 gap-1">
             {stringNames.map((_, sIdx) => (
               <div key={sIdx} className="flex-1 flex relative items-center group">
-                {/* The Physical String Visual - 縦線 */}
+                {/* The Physical String Visual - 縦線（色と太さグラデーション） */}
                 <div
-                  className={`absolute h-full top-0 transition-all duration-75 ${
+                  className={`absolute h-full top-0 transition-all duration-75 rounded-full ${
                     fretStates[sIdx] > 0
-                    ? 'w-[4px] bg-orange-400 shadow-[0_15px_0_rgba(251,146,60,0.8)] string-vibrate'
-                    : 'w-[2px] bg-slate-700 shadow-inner'
+                    ? 'w-[5px] bg-orange-400 shadow-[0_15px_0_rgba(251,146,60,0.8)] string-vibrate'
+                    : `${stringThickness[sIdx]} ${stringColors[sIdx]} shadow-inner`
                   }`}
-                  style={{ left: '50%' }}
+                  style={{ left: '50%', transform: 'translateX(-50%)' }}
                 />
 
                 {/* Touch Zones - 縦方向 */}
@@ -138,21 +177,41 @@ interface ChordBtnProps {
 
 const ChordButton: React.FC<ChordBtnProps> = ({ label, pattern, current, onClick }) => {
   const isActive = pattern.every((v, i) => v === current[i]);
+  
+  // バレーコードを検出（複数弦が同じフレットを押している）
+  const fretCounts = pattern.filter(f => f > 0).reduce((acc, f) => {
+    acc[f] = (acc[f] || 0) + 1;
+    return acc;
+  }, {} as Record<number, number>);
+  
+  const barreFrets = Object.entries(fretCounts)
+    .filter(([_, count]) => count >= 2)
+    .map(([fret]) => parseInt(fret));
+  
   const handleClick = () => {
     if (window.navigator.vibrate) window.navigator.vibrate([15, 10, 15]);
     onClick(pattern);
   };
-
+  
   return (
     <button 
-      className={`rounded-2xl border-2 font-black text-lg transition-all active:scale-95 shadow-lg ${
+      className={`relative rounded-2xl border-2 font-black text-lg transition-all active:scale-95 shadow-lg overflow-hidden ${
         isActive 
-        ? 'bg-orange-500 border-orange-300 text-white shadow-orange-500/20' 
-        : 'bg-slate-800 border-white/5 text-slate-400'
+          ? 'bg-orange-500 border-orange-300 text-white shadow-orange-500/20' 
+          : 'bg-slate-800 border-white/5 text-slate-400'
       }`}
       onTouchStart={handleClick}
     >
       {label}
+      
+      {/* バレーコードの視覚インジケーター */}
+      {isActive && barreFrets.length > 0 && (
+        <div className="absolute bottom-0 left-0 right-0 flex gap-px px-2 pb-1">
+          {barreFrets.map(fret => (
+            <div key={fret} className="flex-1 h-1 bg-orange-300/60 rounded-b shadow-[0_2px_2px_rgba(251,146,60,0.3)]" />
+          ))}
+        </div>
+      )}
     </button>
   );
 };

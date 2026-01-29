@@ -17,11 +17,39 @@ const App: React.FC = () => {
   const [showSongSelector, setShowSongSelector] = useState(false);
 
   useEffect(() => {
-    // Generate a simple room ID if needed or read from URL hash
     const hash = window.location.hash.replace('#', '');
     if (hash && hash.length === 4) {
       setRoomId(hash.toUpperCase());
     }
+  }, []);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      console.log('[App] Hash changed:', hash, 'Current role:', role);
+      
+      if (hash && hash.length === 4) {
+        setRoomId(hash.toUpperCase());
+        
+        if (role === AppRole.LOBBY && hash.length === 4) {
+          console.log('[App] Auto-transitioning to MOBILE_CONTROLLER mode');
+          const signalingServerUrl = (import.meta as any).env.VITE_SIGNALING_SERVER_URL || 'ws://localhost:8000/ws';
+          const service = new WebRTCService(hash.toUpperCase(), signalingServerUrl);
+          service.setRole('MOBILE_CONTROLLER');
+          setWebrtc(service);
+          
+          service.onConnected(() => setConnected(true));
+          await service.initialize(false);
+        }
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    handleHashChange();
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+    };
   }, []);
 
   const handleRoleSelect = useCallback(async (selectedRole: AppRole, id: string) => {

@@ -42,10 +42,17 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
     }
   };
 
-  const roomUrl = typeof window !== 'undefined' ? `${window.location.origin}?#${id}` : `http://localhost:3000?#${id}`;
+  const roomUrl = `/#${id}`;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-8 max-w-md mx-auto">
+    <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-8 max-w-md mx-auto overflow-y-auto">
+        {/* QRコードエリアのz-indexを高めてモバイルボタンが押せるようにする */}
+        {showQR && (
+          <style>{`
+            .lobby-container { position: relative; }
+            .mobile-button { position: relative; z-index: 10; }
+          `}</style>
+        )}
       <div className="text-center">
         <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-yellow-400 mb-2 italic">
           AIR GUITAR PRO
@@ -53,7 +60,7 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
         <p className="text-slate-400">The Ultimate Two-Device Rock Simulator</p>
       </div>
 
-      <div className="w-full bg-slate-900/50 p-8 rounded-3xl border border-slate-800 shadow-2xl backdrop-blur-xl space-y-6">
+        <div className="w-full bg-slate-900/50 p-8 rounded-3xl border border-slate-800 shadow-2xl backdrop-blur-xl space-y-6 pb-safe">
         <div className="space-y-2">
           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Room Code</label>
           <input
@@ -67,10 +74,10 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
         </div>
 
         {showQR && (
-          <div className="flex flex-col items-center space-y-4 p-4 bg-white rounded-xl relative">
+          <div className="flex flex-col items-center space-y-4 p-4 bg-white rounded-xl relative z-30">
             <button
               onClick={() => setShowQR(false)}
-              className="absolute top-2 right-2 w-8 h-8 bg-slate-200 hover:bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold transition-all"
+              className="absolute top-2 right-2 w-8 h-8 bg-slate-200 hover:bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold transition-all z-40"
               aria-label="QRコードを閉じる"
             >
               ×
@@ -105,18 +112,25 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
 
         <div className="grid grid-cols-1 gap-4">
           <button
+            onClick={handleMobileSession}
+            className={`mobile-button relative bg-slate-800 border-2 px-6 py-4 rounded-xl font-bold text-lg hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-2 overflow-hidden ${
+              id.length === 4 && !showQR ? 'ring-2 ring-offset-2 ring-orange-500 animate-pulse' : 'border-slate-700 text-white'
+            }`}
+          >
+            {id.length === 4 && !showQR && (
+              <div className="absolute inset-0 flex items-center justify-center bg-orange-500/20">
+                <span className="text-xs font-bold text-orange-400">QRコード読み込み中...</span>
+              </div>
+            )}
+            <i className="fa-solid fa-mobile-screen mr-2"></i> MOBILE MODE (Left Hand)
+          </button>
+
+          <button
             onClick={handlePCSession}
             className="group relative bg-white text-slate-950 px-6 py-4 rounded-xl font-bold text-lg hover:scale-[1.02] active:scale-95 transition-all shadow-lg overflow-hidden"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500"></div>
             <i className="fa-solid fa-desktop mr-2"></i> PC MODE (Right Hand)
-          </button>
-
-          <button
-            onClick={handleMobileSession}
-            className="bg-slate-800 border-2 border-slate-700 text-white px-6 py-4 rounded-xl font-bold text-lg hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-2"
-          >
-            <i className="fa-solid fa-mobile-screen mr-2"></i> MOBILE MODE (Left Hand)
           </button>
         </div>
       </div>
