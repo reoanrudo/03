@@ -1,21 +1,66 @@
+export interface RoomInfo {
+  room_id: string;
+  access_token: string;
+  expires_in: number;
+}
+
 export class WebRTCService {
   private peerConnection: RTCPeerConnection | null = null;
   private dataChannel: RTCDataChannel | null = null;
   private ws: WebSocket | null = null;
   private roomId: string;
   private role: 'PC_PLAYER' | 'MOBILE_CONTROLLER';
+  private accessToken: string | null = null;
   private onMessageCallback: ((data: any) => void) | null = null;
   private onConnectedCallback: (() => void) | null = null;
   private signalingServerUrl: string;
+  private apiBaseUrl: string;
 
-  constructor(roomId: string, signalingServerUrl: string = 'ws://localhost:8000/ws') {
+  constructor(roomId: string, signalingServerUrl: string = '') {
     this.roomId = roomId;
-    this.signalingServerUrl = signalingServerUrl;
+
+    // HTTPS/WSS対応 - プロトコルを自動判定
+    if (!signalingServerUrl) {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.hostname;
+      const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+      this.signalingServerUrl = `${protocol}//${host}:${port}/ws`;
+      this.apiBaseUrl = `${window.location.protocol}//${host}:${port}/api`;
+    } else {
+      this.signalingServerUrl = signalingServerUrl;
+      // API URLはシグナリングサーバーと同じホスト
+      const url = new URL(signalingServerUrl);
+      this.apiBaseUrl = `${url.protocol.replace('ws', 'http')}//${url.host}/api`;
+    }
+
     this.role = roomId.includes('PC') ? 'PC_PLAYER' : 'MOBILE_CONTROLLER';
   }
 
   setRole(role: 'PC_PLAYER' | 'MOBILE_CONTROLLER') {
     this.role = role;
+  }
+
+  /**
+   * ルームを作成し、アクセストークンを取得
+   */
+  async createRoom(preferredRoomId?: string): Promise<RoomInfo> {
+    const response = await fetch(`${this.apiBaseUrl}/rooms`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        preferred_room_id: preferredRoomId || this.roomId
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to create room');
+    }
+
+    const data = await response.json();
+    this.accessToken = data.access_token;
+    return data;
   }
 
   async initialize(isHost: boolean): Promise<void> {
@@ -65,8 +110,10 @@ export class WebRTCService {
         this.ws?.send(JSON.stringify({
           type: 'JOIN',
           roomId: this.roomId,
-          role: this.role
+          role: this.role,
+          token: this.accessToken || ''  // トークンを送信
         }));
+        resolve();
       };
 
       this.ws.onmessage = async (event) => {
@@ -126,6 +173,13 @@ export class WebRTCService {
 
       case 'ERROR':
         console.error('Server error:', payload.message);
+        // エラーをUIに通知
+        if (payload.message === 'Unauthorized: Invalid token') {
+          this.onMessageCallback?.({
+            type: 'ERROR',
+            payload: { message: '認証エラー：無効なトークンです' }
+          });
+        }
         break;
 
       default:

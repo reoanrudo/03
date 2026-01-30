@@ -51,7 +51,7 @@ const App: React.FC = () => {
     };
   }, [role]);
 
-  const handleRoleSelect = useCallback(async (selectedRole: AppRole, id: string) => {
+  const handleRoleSelect = useCallback(async (selectedRole: AppRole, id: string, accessToken?: string) => {
     if (selectedRole === AppRole.PC_PLAYER) {
       setShowSongSelector(true);
       setRoomId(id.toUpperCase());
@@ -59,8 +59,14 @@ const App: React.FC = () => {
       setRole(selectedRole);
       setRoomId(id.toUpperCase());
 
-      const signalingServerUrl = (import.meta as any).env.VITE_SIGNALING_SERVER_URL || 'ws://localhost:8000/ws';
+      const signalingServerUrl = (import.meta as any).env.VITE_SIGNALING_SERVER_URL || '';
       const service = new WebRTCService(id.toUpperCase(), signalingServerUrl);
+
+      // トークンが提供された場合は設定（モバイル側）
+      if (accessToken) {
+        service.accessToken = accessToken;
+      }
+
       service.setRole('MOBILE_CONTROLLER');
       setWebrtc(service);
 

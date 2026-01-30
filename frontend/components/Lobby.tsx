@@ -2,44 +2,91 @@
 import React, { useState, useEffect } from 'react';
 import { AppRole } from '../types';
 import QRCode from 'react-qr-code';
+import { WebRTCService, RoomInfo } from '../services/WebRTCService';
 
 interface LobbyProps {
-  onSelect: (role: AppRole, roomId: string) => void;
+  onSelect: (role: AppRole, roomId: string, accessToken?: string) => void;
   initialRoomId?: string;
 }
 
 const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
   const [id, setId] = useState(initialRoomId || '');
   const [showQR, setShowQR] = useState(false);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (id.length === 4) {
+    if (id.length >= 4 && id.length <= 8) {
       setShowQR(true);
     } else {
       setShowQR(false);
     }
   }, [id]);
 
-  const generateId = () => {
+  /**
+   * 安全なルームIDを生成（暗号論的に強い）
+   */
+  const generateSecureId = (): string => {
+    const array = new Uint8Array(6);
+    crypto.getRandomValues(array);
+    // Base32風のエンコード（紛れのない文字のみ）
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let result = '';
-    for (let i = 0; i < 4; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let i = 0; i < 6; i++) {
+      result += chars[array[i] % chars.length];
     }
     return result;
   };
 
-  const handlePCSession = () => {
-    const newId = id || generateId();
-    onSelect(AppRole.PC_PLAYER, newId);
+  /**
+   * ルームIDをサニタイズ（英数字のみ、大文字、最大8文字）
+   */
+  const sanitizeRoomId = (roomId: string): string => {
+    return roomId.toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .substring(0, 8);
+  };
+
+  const handlePCSession = async () => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const sanitizedId = sanitizeRoomId(id);
+      const finalRoomId = sanitizedId || generateSecureId();
+
+      // バックエンドAPIでルームを作成し、アクセストークンを取得
+      const webrtc = new WebRTCService(finalRoomId);
+      const roomInfo: RoomInfo = await webrtc.createRoom(finalRoomId);
+
+      setId(finalRoomId);
+      onSelect(AppRole.PC_PLAYER, finalRoomId, roomInfo.access_token);
+    } catch (e) {
+      console.error('Failed to create room:', e);
+      setError('ルームの作成に失敗しました。もう一度お試しください。');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleMobileSession = () => {
-    if (id.length === 4) {
-      onSelect(AppRole.MOBILE_CONTROLLER, id);
-    } else {
-      alert('Please enter a 4-character Room ID first!');
+    const sanitizedId = sanitizeRoomId(id);
+
+    if (sanitizedId.length < 4 || sanitizedId.length > 8) {
+      setError('ルームIDは4〜8文字の英数字で入力してください');
+      return;
     }
+
+    setError('');
+    onSelect(AppRole.MOBILE_CONTROLLER, sanitizedId);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toUpperCase();
+    // 入力時にサニタイズ
+    const sanitized = sanitizeRoomId(value);
+    setId(sanitized);
+    setError('');
   };
 
   const isRender = typeof window !== 'undefined' && window.location.hostname.includes('render.com');
@@ -56,17 +103,23 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
         <p className="text-slate-400">The Ultimate Two-Device Rock Simulator</p>
       </div>
 
-        <div className="w-full bg-slate-900/50 p-8 rounded-3xl border border-slate-800 shadow-2xl backdrop-blur-xl space-y-6 pb-safe">
+      <div className="w-full bg-slate-900/50 p-8 rounded-3xl border border-slate-800 shadow-2xl backdrop-blur-xl space-y-6 pb-safe">
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Room Code</label>
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">
+            Room Code (4-8文字)
+          </label>
           <input
             type="text"
-            maxLength={4}
-            placeholder="ABCD"
+            maxLength={8}
+            placeholder="ABCD1234"
             value={id}
-            onChange={(e) => setId(e.target.value.toUpperCase())}
+            onChange={handleInputChange}
             className="w-full bg-slate-800 border-2 border-slate-700 rounded-xl px-4 py-3 text-2xl font-mono text-center focus:border-orange-500 focus:outline-none transition-all"
+            disabled={isLoading}
           />
+          {error && (
+            <p className="text-xs font-bold text-red-500 mt-1">{error}</p>
+          )}
         </div>
 
         {showQR && (
@@ -94,23 +147,24 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
           </div>
         )}
 
-        {!showQR && id.length === 4 && (
+        {!showQR && id.length >= 4 && id.length <= 8 && (
           <button
             onClick={() => setShowQR(true)}
             className="text-xs font-bold text-orange-500 hover:text-orange-400 underline transition-all"
           >
-            QR コードを再表示
+            QR コードを表示
           </button>
         )}
 
         <div className="grid grid-cols-1 gap-4">
           <button
             onClick={handleMobileSession}
-            className={`mobile-button relative bg-slate-800 border-2 px-6 py-4 rounded-xl font-bold text-lg hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-2 overflow-hidden ${
-              id.length === 4 && !showQR ? 'ring-2 ring-offset-2 ring-orange-500 animate-pulse' : 'border-slate-700 text-white'
+            disabled={isLoading}
+            className={`mobile-button relative bg-slate-800 border-2 px-6 py-4 rounded-xl font-bold text-lg hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-2 overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${
+              id.length >= 4 && id.length <= 8 && !showQR ? 'ring-2 ring-offset-2 ring-orange-500 animate-pulse' : 'border-slate-700 text-white'
             }`}
           >
-            {id.length === 4 && !showQR && (
+            {id.length >= 4 && id.length <= 8 && !showQR && (
               <div className="absolute inset-0 flex items-center justify-center bg-orange-500/20">
                 <span className="text-xs font-bold text-orange-400">QRコード読み込み中...</span>
               </div>
@@ -120,10 +174,17 @@ const Lobby: React.FC<LobbyProps> = ({ onSelect, initialRoomId }) => {
 
           <button
             onClick={handlePCSession}
-            className="group relative bg-white text-slate-950 px-6 py-4 rounded-xl font-bold text-lg hover:scale-[1.02] active:scale-95 transition-all shadow-lg overflow-hidden"
+            disabled={isLoading}
+            className="group relative bg-white text-slate-950 px-6 py-4 rounded-xl font-bold text-lg hover:scale-[1.02] active:scale-95 transition-all shadow-lg overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500"></div>
-            <i className="fa-solid fa-desktop mr-2"></i> PC MODE (Right Hand)
+            {isLoading ? (
+              <span>接続中...</span>
+            ) : (
+              <>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500"></div>
+                <i className="fa-solid fa-desktop mr-2"></i> PC MODE (Right Hand)
+              </>
+            )}
           </button>
         </div>
       </div>

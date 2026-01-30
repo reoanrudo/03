@@ -27,6 +27,12 @@ env/
 .coverage
 .ruff_cache/
 
+# Environment variables (セキュリティ: シークレットキーを含むファイルは除外)
+.env
+.env.local
+.env*.local
+.env.production
+
 # Node
 node_modules/
 dist/

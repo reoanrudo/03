@@ -1,12 +1,24 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Air Guitar Pro</title>
+
+  <!-- Content-Security-Policy -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://esm.sh https://cdnjs.cloudflare.com;
+                 style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+                 img-src 'self' data: https://cdn.tailwindcss.com;
+                 connect-src 'self' ws: wss: https://bore.pub;">
+
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+        integrity="sha512-9usAa10xo0OnW6/v4UOxC4Sghj2r1pRhQ4rwrcwDgfAp0VV4gD7sjWgruhDZ1UfGw3R1JWZc3y/l70sqwHhAAABCfSJQ=="
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer">
   <style>
     body {
       background-color: #0f172a;
